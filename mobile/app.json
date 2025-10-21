@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "MovieChat",
+    "slug": "moviechat",
+    "sdkVersion": "51.0.0",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ]
+  }
+}
