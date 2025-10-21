@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import RegisterPage from "./pages/RegisterPage";
 import LoginPage from "./pages/LoginPage";
 import RoomsPage from "./pages/RoomsPage";
 
 export default function App() {
-  const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
-  const [username, setUsername] = useState<string>(localStorage.getItem("username") || "");
+  const [token, setToken] = useState(localStorage.getItem("token"));
+  const [username, setUsername] = useState(localStorage.getItem("username") || "");
 
   const handleAuth = (t: string, u: string) => {
     localStorage.setItem("token", t);
@@ -15,48 +15,22 @@ export default function App() {
     setUsername(u);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    setToken(null);
-    setUsername("");
-  };
-
-  // Token yoxdursa login səhifəsinə yönləndir
   return (
-    <BrowserRouter>
+    <Router>
       <Routes>
-        {/* Qeydiyyat */}
-        <Route
-          path="/"
-          element={
-            token ? <Navigate to="/rooms" /> : <RegisterPage />
-          }
-        />
-
-        {/* Daxil olma */}
-        <Route
-          path="/login"
-          element={
-            token ? <Navigate to="/rooms" /> : <LoginPage onAuth={handleAuth} />
-          }
-        />
-
-        {/* Otaqlar */}
-        <Route
-          path="/rooms"
-          element={
-            token ? (
-              <RoomsPage username={username} />
-            ) : (
-              <Navigate to="/login" />
-            )
-          }
-        />
-
-        {/* Naməlum səhifələr üçün fallback */}
-        <Route path="*" element={<Navigate to="/" />} />
+        {!token ? (
+          <>
+            <Route path="/" element={<RegisterPage />} />
+            <Route path="/login" element={<LoginPage onAuth={handleAuth} />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </>
+        ) : (
+          <>
+            <Route path="/rooms" element={<RoomsPage username={username} />} />
+            <Route path="*" element={<Navigate to="/rooms" />} />
+          </>
+        )}
       </Routes>
-    </BrowserRouter>
+    </Router>
   );
 }
