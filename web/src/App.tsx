@@ -20,7 +20,7 @@ export default function App() {
       <Routes>
         {!token ? (
           <>
-            <Route path="/" element={<RegisterPage />} />
+            <Route path="/" element={<RegisterPage onAuth={handleAuth} />} />
             <Route path="/login" element={<LoginPage onAuth={handleAuth} />} />
             <Route path="*" element={<Navigate to="/" />} />
           </>

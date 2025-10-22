@@ -2,7 +2,11 @@ import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
-export default function RegisterPage() {
+interface RegisterPageProps {
+  onAuth: (token: string, username: string) => void;
+}
+
+export default function RegisterPage({ onAuth }: RegisterPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -21,10 +25,10 @@ export default function RegisterPage() {
         username,
       });
 
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("username", res.data.user.username);
+      onAuth(res.data.token, res.data.user.username);
       navigate("/rooms");
     } catch (err: any) {
+      console.error(err);
       setMsg("❌ Qeydiyyat zamanı xəta baş verdi.");
     }
   }
