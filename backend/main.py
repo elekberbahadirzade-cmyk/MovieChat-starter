@@ -10,12 +10,16 @@ import bcrypt
 import jwt
 import socketio
 
-# ----- ENV -----
+# ===============================
+# ENV SETTINGS
+# ===============================
 JWT_SECRET = os.environ.get("JWT_SECRET", "dev_secret_change_me")
 JWT_ALG = os.environ.get("JWT_ALG", "HS256")
-CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://movie-chat-starter-8x3h.vercel.app")
 
-# ----- In-Memory DB -----
+# ===============================
+# IN-MEMORY DATABASE
+# ===============================
 db = {
     "users": {},     # email -> user
     "rooms": {},     # room_id -> room
@@ -35,7 +39,9 @@ db["rooms"]["general"] = {
     "created_at": time.time()
 }
 
-# ----- Models -----
+# ===============================
+# MODELS
+# ===============================
 class RegisterDTO(BaseModel):
     email: str
     password: str
@@ -55,7 +61,9 @@ class MessageDTO(BaseModel):
     room_id: str
     text: str
 
-# ----- Auth utils -----
+# ===============================
+# AUTH HELPERS
+# ===============================
 def create_jwt(payload: Dict[str, Any]) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
@@ -76,29 +84,42 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[str, A
         raise HTTPException(401, "User not found")
     return user
 
-# ----- SocketIO + FastAPI -----
+# ===============================
+# FASTAPI + SOCKET.IO SETUP
+# ===============================
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 app = FastAPI(title="🎬 MovieChat Backend")
-asgi_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
-# ----- CORS -----
+# CORS (frontendlə işləməsi üçün)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "*",
+        FRONTEND_URL,
+        "https://moviechat-starter.onrender.com"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ----- Helpers -----
+# ASGI (Render uvicorn üçün bu istifadə olunur)
+asgi_app = socketio.ASGIApp(sio, other_asgi_app=app)
+
+# ===============================
+# HELPERS
+# ===============================
 def generate_room_code():
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
-# ----- AUTH -----
+# ===============================
+# AUTH ENDPOINTS
+# ===============================
 @app.post("/auth/register")
 def register(dto: RegisterDTO):
     if dto.email in db["users"]:
         raise HTTPException(400, "Email already registered")
+
     pwd_hash = bcrypt.hashpw(dto.password.encode(), bcrypt.gensalt()).decode()
     user = {
         "_id": dto.email,
@@ -109,19 +130,24 @@ def register(dto: RegisterDTO):
         "preferred_language": dto.preferred_language or "tr",
         "created_at": time.time()
     }
+
     db["users"][dto.email] = user
     token = create_jwt({"email": dto.email, "username": dto.username, "iat": int(time.time())})
     return {"token": token, "user": user}
+
 
 @app.post("/auth/login")
 def login(dto: LoginDTO):
     user = db["users"].get(dto.email)
     if not user or not bcrypt.checkpw(dto.password.encode(), user["password_hash"].encode()):
         raise HTTPException(401, "Invalid credentials")
+
     token = create_jwt({"email": user["email"], "username": user["username"], "iat": int(time.time())})
     return {"token": token, "user": user}
 
-# ----- ROOMS -----
+# ===============================
+# ROOMS
+# ===============================
 @app.post("/rooms", dependencies=[Depends(get_current_user)])
 def create_room(dto: RoomDTO, user: Dict[str, Any] = Depends(get_current_user)):
     room_id = f"room_{int(time.time() * 1000)}"
@@ -140,9 +166,11 @@ def create_room(dto: RoomDTO, user: Dict[str, Any] = Depends(get_current_user)):
     db["rooms"][room_id] = room
     return room
 
+
 @app.get("/rooms", dependencies=[Depends(get_current_user)])
 def list_rooms(user: Dict[str, Any] = Depends(get_current_user)):
     return [r for r in db["rooms"].values() if r["is_public"] or r["owner_id"] == user["_id"]]
+
 
 @app.post("/rooms/join", dependencies=[Depends(get_current_user)])
 def join_room(data: Dict[str, Any], user: Dict[str, Any] = Depends(get_current_user)):
@@ -157,6 +185,7 @@ def join_room(data: Dict[str, Any], user: Dict[str, Any] = Depends(get_current_u
         room["members"].append(user["_id"])
     return {"ok": True, "room": room}
 
+
 @app.get("/rooms/{room_id}", dependencies=[Depends(get_current_user)])
 def get_room(room_id: str, user: Dict[str, Any] = Depends(get_current_user)):
     room = db["rooms"].get(room_id)
@@ -166,12 +195,16 @@ def get_room(room_id: str, user: Dict[str, Any] = Depends(get_current_user)):
         raise HTTPException(403, "Forbidden")
     return room
 
-# ----- MESSAGES -----
+# ===============================
+# MESSAGES
+# ===============================
 @app.get("/messages/{room_id}", dependencies=[Depends(get_current_user)])
 def get_messages(room_id: str):
     return [m for m in db["messages"] if m["room_id"] == room_id]
 
-# ----- SOCKET.IO -----
+# ===============================
+# SOCKET.IO EVENTS
+# ===============================
 @sio.event
 async def connect(sid, environ):
     print("Client connected:", sid)
@@ -222,6 +255,9 @@ async def voice_signal(sid, data):
     to_sid = data.get("to")
     await sio.emit("voice:signal", data, to=to_sid)
 
+# ===============================
+# HEALTH CHECK
+# ===============================
 @app.get("/health")
 def health():
     return {"ok": True, "time": time.time()}
